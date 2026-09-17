@@ -1,0 +1,175 @@
+name: Multi-Platform Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    name: Build Linux (.deb & binary)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libasound2-dev
+
+      - name: Install cargo-deb
+        run: cargo install cargo-deb
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Build Debian package (.deb)
+        run: cargo deb --no-build
+
+      - name: Prepare standalone Linux binary
+        run: |
+          cp target/release/rustyimage rustyimage-linux-x86_64
+          chmod +x rustyimage-linux-x86_64
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: |
+            target/debian/*.deb
+            rustyimage-linux-x86_64
+
+  build-macos:
+    name: Build macOS (.dmg)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin,aarch64-apple-darwin
+
+      - name: Compile for Intel (x86_64)
+        run: cargo build --release --target x86_64-apple-darwin
+
+      - name: Compile for Apple Silicon (aarch64)
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Create Universal Binary with lipo
+        run: |
+          mkdir -p bin-universal
+          lipo -create -output bin-universal/rustyimage target/x86_64-apple-darwin/release/rustyimage target/aarch64-apple-darwin/release/rustyimage
+          file bin-universal/rustyimage
+
+      - name: Bundle RustyImage.app
+        run: |
+          mkdir -p RustyImage.app/Contents/MacOS
+          mkdir -p RustyImage.app/Contents/Resources
+          cp bin-universal/rustyimage RustyImage.app/Contents/MacOS/rustyimage
+          chmod +x RustyImage.app/Contents/MacOS/rustyimage
+          
+          # Create Info.plist
+          cat << 'EOF' > RustyImage.app/Contents/Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>rustyimage</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.rustyimage.app</string>
+              <key>CFBundleName</key>
+              <string>RustyImage</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>0.2.0</string>
+              <key>CFBundleVersion</key>
+              <string>0.2.0</string>
+              <key>NSHighResolutionCapable</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Create DMG bundle
+        run: |
+          hdiutil create -volname "RustyImage" -srcfolder RustyImage.app -ov -format UDZO RustyImage-macOS.dmg
+
+      - name: Upload macOS DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: RustyImage-macOS.dmg
+
+  build-windows:
+    name: Build Windows (.exe)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Prepare standalone Windows executable
+        shell: pwsh
+        run: |
+          Copy-Item target/release/rustyimage.exe rustyimage.exe
+
+      - name: Upload Windows executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: rustyimage.exe
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-linux, build-macos, build-windows]
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Consolidate release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f -exec cp {} release-assets/ \;
+          ls -la release-assets/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: RustyImage ${{ github.ref_name }}
+          body: |
+            ## 📥 Download Standalone Packages
+
+            ### 🪟 Windows
+            - **`rustyimage.exe`**: Direct standalone 64-bit Windows executable. Zero installation required.
+
+            ### 🐧 Linux
+            - **`rustyimage_0.2.0_amd64.deb`**: Debian / Ubuntu package (`sudo dpkg -i rustyimage_0.2.0_amd64.deb`).
+            - **`rustyimage-linux-x86_64`**: Direct standalone 64-bit Linux executable (`chmod +x rustyimage-linux-x86_64 && ./rustyimage-linux-x86_64`).
+
+            ### 🍏 macOS
+            - **`RustyImage-macOS.dmg`**: Native macOS disk image installer containing `RustyImage.app` (Apple Silicon M-Series & Intel Universal binary).
+
+            ### 📦 Source Code
+            - Complete source code available below in `.zip` and `.tar.gz` formats.
+          files: release-assets/*

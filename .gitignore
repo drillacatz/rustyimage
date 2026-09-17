@@ -1,0 +1,42 @@
+﻿# Rust / Cargo
+/target
+Cargo.lock.bak
+**/*.rs.bk
+
+# Executables & Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+*.pdb
+
+# Environment & Sensitive Keys
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.p12
+*.cer
+*.crt
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+
+# OS & Filesystem artifacts
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.BIN/
+.DS_Store
+
+# Logs & Temporary files
+*.log
+*.tmp
+temp/
+tmp/
