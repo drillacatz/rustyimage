@@ -158,18 +158,13 @@ jobs:
         with:
           name: RustyImage ${{ github.ref_name }}
           body: |
-            ## 📥 Download Standalone Packages
+            Windows:
+            - [Windows x64 (.exe standalone)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/rustyimage.exe)
 
-            ### 🪟 Windows
-            - **`rustyimage.exe`**: Direct standalone 64-bit Windows executable. Zero installation required.
+            Linux:
+            - [Ubuntu / Debian x64 (.deb package)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/rustyimage_0.2.0_amd64.deb)
+            - [Linux x64 (standalone binary)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/rustyimage-linux-x86_64)
 
-            ### 🐧 Linux
-            - **`rustyimage_0.2.0_amd64.deb`**: Debian / Ubuntu package (`sudo dpkg -i rustyimage_0.2.0_amd64.deb`).
-            - **`rustyimage-linux-x86_64`**: Direct standalone 64-bit Linux executable (`chmod +x rustyimage-linux-x86_64 && ./rustyimage-linux-x86_64`).
-
-            ### 🍏 macOS
-            - **`RustyImage-macOS.dmg`**: Native macOS disk image installer containing `RustyImage.app` (Apple Silicon M-Series & Intel Universal binary).
-
-            ### 📦 Source Code
-            - Complete source code available below in `.zip` and `.tar.gz` formats.
+            macOS:
+            - [macOS Apple Silicon & Intel (Universal .dmg)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/RustyImage-macOS.dmg)
           files: release-assets/*
